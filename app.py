@@ -1,13 +1,15 @@
 import streamlit as st
+import os
 import torch
 import copy
 import pandas as pd
 import time
+import numpy as np
 from torch.utils.data import DataLoader
 
 import config
 from clients.client import Client
-from models.cnn import CNN
+from model import get_model
 from server.aggregator import fedavg
 from data.data_loader import load_data, partition_data
 from utils.evaluation import evaluate
@@ -24,14 +26,44 @@ col_info, col_metrics = st.columns([1, 1])
 
 with col_info:
     st.subheader("⚙️ Current Configuration")
-    st.write(f"**Dataset:** `MNIST (Authentic)`")
-    st.write(f"**Model:** `CNN`")
+    st.write(f"**Dataset:** `{config.DATASET_TYPE.replace('_', ' ').upper()}`")
+    st.write(f"**Model:** `{config.MODEL_TYPE.replace('_', ' ').upper()}`")
     st.write(f"**Clients:** `{config.NUM_CLIENTS}`")
     st.write(f"**Rounds:** `{config.NUM_ROUNDS}`")
-    is_iid = st.toggle("IID Distribution", value=True, help="Toggle between IID (randomly shuffled) and Non-IID (sorted by labels) data partitioning.")
+
+    st.markdown("---")
+    st.subheader("🔬 Research Settings")
+    is_iid = st.toggle("IID Distribution", value=True)
+    use_dp = st.checkbox("Enable Differential Privacy (Noise)", value=False)
+    participation_rate = st.slider("Client Participation Rate", 0.1, 1.0, 1.0)
+
+    st.markdown("---")
+    st.subheader("🧪 Test Saved Model")
+    uploaded_model = st.file_uploader("Upload a saved .pth model", type=["pth"])
+    if uploaded_model:
+        if st.button("Evaluate Uploaded Model"):
+            with st.spinner("Loading data and evaluating..."):
+                _, test_ds = load_data()
+                test_loader = DataLoader(test_ds, batch_size=config.BATCH_SIZE, shuffle=False)
+                
+                # Determine input/output dims for the architecture
+                if config.DATASET_TYPE == "mnist":
+                    in_dim, out_dim = 784, 10
+                else:
+                    in_dim = test_ds.tensors[0].shape[1]
+                    out_dim = len(torch.unique(test_ds.tensors[1]))
+                
+                eval_model = get_model(config.MODEL_TYPE, in_dim, out_dim)
+                try:
+                    eval_model.load_state_dict(torch.load(uploaded_model, map_location="cpu"))
+                    acc = evaluate(eval_model, test_loader)
+                    st.success(f"Model Accuracy: {acc:.2f}%")
+                except Exception as e:
+                    st.error(f"Incompatible model weights: {e}")
 
 with col_metrics:
-    st.subheader("🔒 Privacy Proof")
+    st.subheader("📊 Data Distribution")
+    dist_chart = st.empty()
     st.error("Server Raw Data: 0 BYTES")
     weight_info = st.empty()
 
@@ -50,10 +82,32 @@ if st.button("🚀 Start Simulation"):
     # 1. Load and Partition Data
     train_dataset, test_dataset = load_data()
     client_datasets = partition_data(train_dataset, config.NUM_CLIENTS, iid=is_iid)
+
+    # Visualize Data Distribution per client
+    dist_data = []
+    for i, ds in enumerate(client_datasets):
+        # Handle different dataset types for label access
+        if hasattr(train_dataset, 'targets'):
+            labels = train_dataset.targets[ds.indices].numpy()
+        else:
+            labels = train_dataset.tensors[1][ds.indices].numpy()
+            
+        counts = np.bincount(labels)
+        dist_data.append(counts)
+    
+    df_dist = pd.DataFrame(dist_data).fillna(0)
+    dist_chart.bar_chart(df_dist, width="stretch")
+
     test_loader = DataLoader(test_dataset, batch_size=config.BATCH_SIZE, shuffle=False)
 
     # 2. Initialize Global Model
-    global_model = CNN()
+    if config.DATASET_TYPE == "mnist":
+        in_dim, out_dim = 784, 10
+    else:
+        in_dim = train_dataset.tensors[0].shape[1]
+        out_dim = len(torch.unique(train_dataset.tensors[1]))
+
+    global_model = get_model(config.MODEL_TYPE, in_dim, out_dim)
     
     accuracies = []
     total_weight_size = 0
@@ -62,12 +116,18 @@ if st.button("🚀 Start Simulation"):
         log_box.text(f"Round {r+1}: Training {config.NUM_CLIENTS} clients...")
         client_weights = []
         
+        # Research Feature: Client Selection (Partial Participation)
+        available_clients = range(config.NUM_CLIENTS)
+        selected_clients = np.random.choice(available_clients, 
+                                            int(config.NUM_CLIENTS * participation_rate), 
+                                            replace=False)
+
         # 3. Local Training (Clients)
-        for i in range(config.NUM_CLIENTS):
+        for i in selected_clients:
             local_model = copy.deepcopy(global_model)
             loader = DataLoader(client_datasets[i], batch_size=config.BATCH_SIZE, shuffle=True)
             client = Client(i, local_model, loader)
-            weights, size = client.train()
+            weights, size = client.train(use_dp=use_dp)
             client_weights.append(weights)
             total_weight_size += size
 
@@ -84,6 +144,11 @@ if st.button("🚀 Start Simulation"):
         )
         weight_info.info(f"Total Weights Transferred: {total_weight_size:.2f} KB")
         time.sleep(0.2)
+
+    # Save the trained global model
+    os.makedirs(os.path.dirname(config.MODEL_SAVE_PATH), exist_ok=True)
+    torch.save(global_model.state_dict(), config.MODEL_SAVE_PATH)
+    st.info(f"Final global model saved to `{config.MODEL_SAVE_PATH}`")
 
     st.success("✅ Simulation Complete! Privacy preserved via Weight Sharing.")
     st.balloons()

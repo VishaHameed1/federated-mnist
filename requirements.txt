@@ -5,3 +5,6 @@ pandas
 matplotlib
 streamlit
 scikit-learn
+opendatasets
+legacy-cgi
+python-dotenv

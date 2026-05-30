@@ -77,5 +77,5 @@ A complete, framework-free implementation of Federated Learning for privacy-pres
 
 ---
 ## 👥 Authors & Roles
-*   **Visha Hameed**: Data Pipeline, FedAvg Aggregation Logic, Model Architectures.
-*   **Hadiqa Ehsan**: Local Client Training Implementation, Evaluation Metrics, Streamlit Dashboard.
+*   **Hadiqa Ehsan**: Core Backend Logic (Data Partitioning, FedAvg Aggregator, Client Training, Model Architectures).
+*   **Visha Hameed**: Frontend & Integration (Streamlit Dashboard, Configuration System, Main Entry Point).
