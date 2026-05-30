@@ -1,26 +1,12 @@
-import copy
+import torch
 
 def fedavg(client_weights):
-
-    avg_weights = copy.deepcopy(
-        client_weights[0]
-    )
-
-    for key in avg_weights.keys():
-
-        for i in range(
-            1,
-            len(client_weights)
-        ):
-
-            avg_weights[key] += (
-                client_weights[i][key]
-            )
-
-        avg_weights[key] = (
-            avg_weights[key]
-            /
-            len(client_weights)
-        )
-
+    """
+    Standard Federated Averaging (FedAvg) implementation.
+    """
+    avg_weights = {}
+    for key in client_weights[0].keys():
+        # Stack tensors and calculate mean along the new dimension
+        avg_weights[key] = torch.stack([cw[key] for cw in client_weights], dim=0).mean(dim=0)
+        
     return avg_weights
