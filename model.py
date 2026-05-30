@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -9,6 +10,7 @@ class SimpleNN(nn.Module):
         self.fc3 = nn.Linear(32, output_dim)
 
     def forward(self, x):
+        x = torch.flatten(x, 1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
@@ -19,6 +21,7 @@ class LogisticRegression(nn.Module):
         self.linear = nn.Linear(input_dim, output_dim)
 
     def forward(self, x):
+        x = torch.flatten(x, 1)
         return self.linear(x)
 
 class CNN(nn.Module):
