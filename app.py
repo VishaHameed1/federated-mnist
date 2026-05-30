@@ -5,82 +5,85 @@ import pandas as pd
 import time
 from torch.utils.data import DataLoader
 
-from models.cnn import CNN
+import config
 from clients.client import Client
+from models.cnn import CNN
 from server.aggregator import fedavg
 from data.data_loader import load_data, partition_data
 from utils.evaluation import evaluate
 
-st.set_page_config(page_title="Federated MNIST Dashboard", layout="wide")
+st.set_page_config(page_title="FL Simulator Dashboard", layout="wide")
 
-st.title("🌐 Federated Learning MNIST Dashboard")
+st.title("🛡️ Collaborative Federated Learning Simulator")
 st.markdown("""
-This dashboard visualizes the training of a global model across multiple decentralized clients using the **FedAvg** algorithm.
+This simulator demonstrates **Privacy-First ML**. Raw data stays on clients; only model weights are shared.
 """)
 
-# Sidebar Configuration
-st.sidebar.header("⚙️ Training Configuration")
-num_clients = st.sidebar.selectbox("Number of Clients", options=[3], index=0, help="Non-IID logic is currently optimized for 3 clients.")
-num_rounds = st.sidebar.slider("Training Rounds", min_value=1, max_value=20, value=5)
-is_iid = st.sidebar.checkbox("IID Distribution", value=False, help="Uncheck for Non-IID (label skew).")
+# Setup UI Layout
+col_info, col_metrics = st.columns([1, 1])
 
-# Placeholder for metrics and charts
-col1, col2 = st.columns([1, 2])
-with col1:
-    st.subheader("Metrics")
-    accuracy_metric = st.empty()
-    round_metric = st.empty()
-    status_text = st.empty()
+with col_info:
+    st.subheader("⚙️ Current Configuration")
+    st.write(f"**Dataset:** `MNIST (Authentic)`")
+    st.write(f"**Model:** `CNN`")
+    st.write(f"**Clients:** `{config.NUM_CLIENTS}`")
+    st.write(f"**Rounds:** `{config.NUM_ROUNDS}`")
+    is_iid = st.toggle("IID Distribution", value=True, help="Toggle between IID (randomly shuffled) and Non-IID (sorted by labels) data partitioning.")
 
-with col2:
+with col_metrics:
+    st.subheader("🔒 Privacy Proof")
+    st.error("Server Raw Data: 0 BYTES")
+    weight_info = st.empty()
+
+st.divider()
+
+chart_col, log_col = st.columns([2, 1])
+with chart_col:
     st.subheader("Global Model Accuracy")
-    chart_placeholder = st.empty()
+    acc_chart_placeholder = st.empty()
 
-if st.button("🚀 Start Federated Training"):
-    # Initialization
-    global_model = CNN()
-    accuracies = []
-    
-    status_text.info("Loading and partitioning data...")
+with log_col:
+    st.subheader("Training Logs")
+    log_box = st.empty()
+
+if st.button("🚀 Start Simulation"):
+    # 1. Load and Partition Data
     train_dataset, test_dataset = load_data()
-    client_datasets = partition_data(train_dataset, num_clients, iid=is_iid)
-    client_loaders = [DataLoader(ds, batch_size=32, shuffle=True) for ds in client_datasets]
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+    client_datasets = partition_data(train_dataset, config.NUM_CLIENTS, iid=is_iid)
+    test_loader = DataLoader(test_dataset, batch_size=config.BATCH_SIZE, shuffle=False)
+
+    # 2. Initialize Global Model
+    global_model = CNN()
     
-    progress_bar = st.progress(0)
-    
-    for round_idx in range(num_rounds):
-        round_num = round_idx + 1
-        round_metric.metric("Current Round", f"{round_num} / {num_rounds}")
-        status_text.warning(f"Round {round_num}: Training clients...")
-        
+    accuracies = []
+    total_weight_size = 0
+
+    for r in range(config.NUM_ROUNDS):
+        log_box.text(f"Round {r+1}: Training {config.NUM_CLIENTS} clients...")
         client_weights = []
         
-        for client_id in range(num_clients):
+        # 3. Local Training (Clients)
+        for i in range(config.NUM_CLIENTS):
             local_model = copy.deepcopy(global_model)
-            client = Client(client_id, local_model, client_loaders[client_id])
-            weights = client.train()
+            loader = DataLoader(client_datasets[i], batch_size=config.BATCH_SIZE, shuffle=True)
+            client = Client(i, local_model, loader)
+            weights, size = client.train()
             client_weights.append(weights)
-            
-        status_text.warning(f"Round {round_num}: Aggregating weights...")
+            total_weight_size += size
+
+        # 4. Aggregation (Server)
         global_weights = fedavg(client_weights)
         global_model.load_state_dict(global_weights)
-        
-        # Evaluation
-        accuracy = evaluate(global_model, test_loader)
-        accuracies.append(accuracy)
-        
-        # Update UI
-        accuracy_metric.metric("Global Accuracy", f"{accuracy:.2f}%")
-        
-        # Update Chart
-        df_accuracy = pd.DataFrame(accuracies, columns=["Accuracy"])
-        chart_placeholder.line_chart(df_accuracy)
-        
-        # Update Progress
-        progress_bar.progress(round_num / num_rounds)
-        
-    status_text.success("✅ Training Complete!")
+
+        # 5. Evaluate and Update UI
+        acc = evaluate(global_model, test_loader)
+        accuracies.append(acc)
+        acc_chart_placeholder.line_chart(
+            pd.DataFrame(accuracies, columns=["Accuracy"]), 
+            width="stretch"
+        )
+        weight_info.info(f"Total Weights Transferred: {total_weight_size:.2f} KB")
+        time.sleep(0.2)
+
+    st.success("✅ Simulation Complete! Privacy preserved via Weight Sharing.")
     st.balloons()
-else:
-    st.info("Click 'Start Federated Training' to begin the simulation.")

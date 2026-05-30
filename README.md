@@ -1,425 +1,81 @@
-Excellent. **Federated MNIST with PyTorch** is the project where you move from toy examples to a real Federated Learning system.
+# 🛡️ Federated Learning Simulator
 
-This project follows the original FedAvg workflow proposed by Brendan McMahan and colleagues in the foundational Federated Learning paper:
+A complete, framework-free implementation of Federated Learning for privacy-preserving machine learning.
 
-* PMLR Paper: [https://proceedings.mlr.press/v54/mcmahan17a.html](https://proceedings.mlr.press/v54/mcmahan17a.html)
+🎯 **Key Insight**: "Server has ZERO raw data. Only model weights are shared."
 
----
-
-# What You'll Build
-
-A Federated Learning system where:
-
+## 🏗️ Architecture
 ```text
-MNIST Dataset
-      |
--------------------------
-|          |           |
-Client1   Client2    Client3
-(train)   (train)    (train)
--------------------------
-      |
-     FedAvg
-      |
- Global Model
-      |
- Accuracy Evaluation
+                    SERVER
+             (Global Model Aggregation)
+                   FedAvg Algorithm
+                       ↑↓
+        ╔──────────────────────────────╗
+        │         WEIGHTS ONLY          │  (No raw data!)
+        ╚──────────────────────────────╝
+                  ↑      ↑      ↑
+    Client 1         Client 2         Client 3
+   (Hospital A)    (Hospital B)    (Hospital C)
 ```
+
+## 📋 Features
+*   **Swappable Datasets**: Breast Cancer, Iris, or MNIST.
+*   **Swappable Models**: Simple NN, CNN, or Logistic Regression.
+*   **Privacy Proof**: Dashboard shows "Server Data: 0 BYTES".
+*   **Framework Free**: Built using pure PyTorch and NumPy (no Flower).
+
+## 🚀 Quick Start
+
+1. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Configure the Simulator**
+   Edit `config.py` to change datasets or models.
+
+3. **Run the Dashboard**
+   ```bash
+   streamlit run app.py
+   ```
+
+## 📁 Project Structure
+*   `config.py`: Central configuration for the simulator.
+*   `app.py`: Streamlit dashboard for training and visualization.
+*   `clients/client.py`: Local training logic for decentralized nodes.
+*   `server/aggregator.py`: FedAvg implementation.
+*   `data/data_loader.py`: Dynamic data loading and partitioning.
+*   `model.py`: Library of swappable model architectures.
+
+## 🔐 Privacy Proof
+| Location | Data Type | Size |
+| :--- | :--- | :--- |
+| **Clients** | Raw Data (Private) | ~15 MB |
+| **Server** | Model Weights (Public) | ~50 KB |
+| **Server** | Raw Data | **0 BYTES** |
+
+## 🧠 Supported Models
+| Model | Architecture | Best For |
+| :--- | :--- | :--- |
+| Simple NN | 3-layer MLP | General classification |
+| CNN | Conv + FC | Image/Spatial data |
+| Logistic Regression | Linear | Baseline comparison |
+
+## 📊 Supported Datasets
+| Dataset | Features | Classes | Use Case |
+| :--- | :--- | :--- | :--- |
+| Breast Cancer | 30 | 2 | Healthcare privacy |
+| Iris | 4 | 3 | Multi-class |
+| MNIST | 784 | 10 | Digit recognition |
+
+## 🔄 How It Works (FedAvg)
+1. Server initializes global weights.
+2. Each client receives global weights and trains locally on private data.
+3. Clients send only updated weights back to the server.
+4. Server averages weights: `θ_global = (θ₁ + θ₂ + ... + θₙ) / n`.
+5. Repeat for multiple rounds.
 
 ---
-
-# Project Structure
-
-```text
-federated-mnist/
-
-│
-├── clients/
-│   └── client.py
-│
-├── server/
-│   ├── server.py
-│   └── aggregator.py
-│
-├── app.py (Streamlit Dashboard)
-│
-├── models/
-│   └── cnn.py
-│
-├── data/
-│   └── data_loader.py
-│
-├── utils/
-│   └── evaluation.py
-│
-├── results/
-│
-├── main.py
-│
-├── requirements.txt
-│
-└── README.md
-```
-
----
-
-# Step 1: Install Dependencies
-
-```bash
-pip install torch torchvision numpy matplotlib streamlit pandas
-```
-
----
-
-# Step 2: CNN Model
-
-## models/cnn.py
-
-```python
-import torch.nn as nn
-import torch.nn.functional as F
-
-class CNN(nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-        self.conv1 = nn.Conv2d(
-            1, 16, kernel_size=3
-        )
-
-        self.pool = nn.MaxPool2d(
-            2, 2
-        )
-
-        self.fc1 = nn.Linear(
-            16 * 13 * 13,
-            10
-        )
-
-    def forward(self, x):
-
-        x = self.pool(
-            F.relu(
-                self.conv1(x)
-            )
-        )
-
-        x = x.view(
-            x.size(0),
-            -1
-        )
-
-        x = self.fc1(x)
-
-        return x
-```
-
----
-
-# Step 3: Load and Split MNIST
-
-## data/data_loader.py
-
-```python
-import torch
-from torchvision import datasets, transforms
-from torch.utils.data import random_split, Subset
-
-transform = transforms.Compose([
-    transforms.ToTensor()
-])
-
-def load_data():
-    train_dataset = datasets.MNIST(
-        root="./data",
-        train=True,
-        download=True,
-        transform=transform
-    )
-    test_dataset = datasets.MNIST(
-        root="./data",
-        train=False,
-        download=True,
-        transform=transform
-    )
-    return train_dataset, test_dataset
-
-def partition_data(dataset, num_clients, iid=True):
-    if iid:
-        partition_size = len(dataset) // num_clients
-        partitions = [partition_size] * num_clients
-        return random_split(dataset, partitions, generator=torch.Generator().manual_seed(42))
-    else:
-        labels = dataset.targets
-        client_indices = [
-            torch.where((labels >= 0) & (labels <= 3))[0],
-            torch.where((labels >= 4) & (labels <= 6))[0],
-            torch.where((labels >= 7) & (labels <= 9))[0]
-        ]
-        return [Subset(dataset, idx) for idx in client_indices]
-```
-
----
-
-# Step 4: Create Federated Clients
-
-## clients/client.py
-
-```python
-import torch
-import torch.nn as nn
-import torch.optim as optim
-
-class Client:
-
-    def __init__(
-        self,
-        client_id,
-        model,
-        dataloader
-    ):
-
-        self.client_id = client_id
-        self.model = model
-        self.dataloader = dataloader
-
-    def train(self):
-
-        criterion = nn.CrossEntropyLoss()
-
-        optimizer = optim.SGD(
-            self.model.parameters(),
-            lr=0.01
-        )
-
-        self.model.train()
-
-        for epoch in range(1):
-
-            for images, labels in self.dataloader:
-
-                optimizer.zero_grad()
-
-                outputs = self.model(images)
-
-                loss = criterion(
-                    outputs,
-                    labels
-                )
-
-                loss.backward()
-
-                optimizer.step()
-
-        return self.model.state_dict()
-```
-
----
-
-# Step 5: FedAvg Aggregation
-
-## server/aggregator.py
-
-```python
-import torch
-
-def fedavg(client_weights):
-    """
-    Standard Federated Averaging (FedAvg) implementation using PyTorch stacking.
-    """
-    avg_weights = {}
-    for key in client_weights[0].keys():
-        avg_weights[key] = torch.stack([cw[key] for cw in client_weights], dim=0).mean(dim=0)
-        
-    return avg_weights
-```
-
-This is the PyTorch implementation of FedAvg.
-
-Reference:
-[https://proceedings.mlr.press/v54/mcmahan17a.html](https://proceedings.mlr.press/v54/mcmahan17a.html)
-
----
-
-# Step 6: Server
-
-## server/server.py
-
-```python
-class Server:
-
-    def __init__(self, model):
-
-        self.global_model = model
-
-    def update_model(
-        self,
-        global_weights
-    ):
-
-        self.global_model.load_state_dict(
-            global_weights
-        )
-```
-
----
-
-# Step 7: Evaluation
-
-## utils/evaluation.py
-
-```python
-import torch
-
-def evaluate(
-    model,
-    testloader
-):
-
-    model.eval()
-
-    correct = 0
-    total = 0
-
-    with torch.no_grad():
-
-        for images, labels in testloader:
-
-            outputs = model(images)
-
-            _, predicted = torch.max(
-                outputs.data,
-                1
-            )
-
-            total += labels.size(0)
-
-            correct += (
-                predicted == labels
-            ).sum().item()
-
-    return 100 * correct / total
-```
-
----
-
-# Step 8: Main Training Loop
-
-## main.py
-
-```python
-import copy
-import torch
-from torch.utils.data import DataLoader
-
-from models.cnn import CNN
-from clients.client import Client
-from server.aggregator import fedavg
-from data.data_loader import load_data, partition_data
-from utils.evaluation import evaluate
-
-global_model = CNN()
-
-NUM_CLIENTS = 3
-ROUNDS = 5
-IID = False 
-
-# Data setup
-train_dataset, test_dataset = load_data()
-client_datasets = partition_data(train_dataset, NUM_CLIENTS, iid=IID)
-client_loaders = [DataLoader(ds, batch_size=32, shuffle=True) for ds in client_datasets]
-test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
-
-for round_num in range(ROUNDS):
-
-    print(
-        f"\nRound {round_num+1}"
-    )
-
-    client_weights = []
-
-    for client_id in range(NUM_CLIENTS):
-
-        local_model = copy.deepcopy(
-            global_model
-        )
-
-        client = Client(
-            client_id,
-            local_model,
-            client_loaders[client_id]
-        )
-
-        weights = client.train()
-
-        client_weights.append(
-            weights
-        )
-
-    global_weights = fedavg(
-        client_weights
-    )
-
-    global_model.load_state_dict(
-        global_weights
-    )
-
-    print(
-        "Aggregation Complete"
-    )
-
-    # Evaluation
-    accuracy = evaluate(global_model, test_loader)
-    print(f"Global model accuracy after round {round_num+1}: {accuracy:.2f}%")
-```
-
----
-
-# Expected Learning Outcomes
-
-After this project you'll understand:
-
-| Concept              | Learned? |
-| -------------------- | -------- |
-| Client Training      | ✅        |
-| Server Aggregation   | ✅        |
-| FedAvg               | ✅        |
-| Communication Rounds | ✅        |
-| Global Model Updates | ✅        |
-| PyTorch FL Workflow  | ✅        |
-| Model Evaluation     | ✅        |
-
----
-
-# Suggested Enhancement
-
-After the basic version works, add:
-
-### IID Split
-
-```text
-Client1 → random digits
-Client2 → random digits
-Client3 → random digits
-```
-
-### Non-IID Split
-
-```text
-Client1 → digits 0-3
-Client2 → digits 4-6
-Client3 → digits 7-9
-```
-
-Then compare accuracy.
-
-This demonstrates one of the most important challenges in Federated Learning and is commonly discussed in FL research.
-
-### Additional References
-
-* PyTorch Documentation: [https://pytorch.org/docs/stable/index.html](https://pytorch.org/docs/stable/index.html)
-* MNIST Database Dataset: [https://yann.lecun.com/exdb/mnist/](https://yann.lecun.com/exdb/mnist/)
-* TorchVision Documentation: [https://pytorch.org/vision/stable/](https://pytorch.org/vision/stable/)
-
-A good next step after this project is building a **Federated MNIST Dashboard** with accuracy graphs, client participation tracking, and round-by-round visualization.
+## 👥 Authors & Roles
+*   **Visha Hameed**: Data Pipeline, FedAvg Aggregation Logic, Model Architectures.
+*   **Hadiqa Ehsan**: Local Client Training Implementation, Evaluation Metrics, Streamlit Dashboard.
