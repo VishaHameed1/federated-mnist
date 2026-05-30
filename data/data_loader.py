@@ -1,42 +1,42 @@
 import torch
-from torchvision import datasets
-from torchvision import transforms
+from torchvision import datasets, transforms
 from torch.utils.data import random_split, Subset
 
-transform = transforms.Compose([
-    transforms.ToTensor()
-])
-
 def load_data():
-
+    """Loads authentic MNIST train and test datasets."""
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))
+    ])
+    
     train_dataset = datasets.MNIST(
         root="./data",
         train=True,
         download=True,
         transform=transform
     )
-
+    
     test_dataset = datasets.MNIST(
         root="./data",
-        train=False, # Load the test set
+        train=False,
         download=True,
         transform=transform
     )
-
-    return train_dataset, test_dataset # Return both train and test datasets
+    
+    return train_dataset, test_dataset
 
 def partition_data(dataset, num_clients, iid=True):
+    """Partitions the dataset among clients."""
+    total_size = len(dataset)
     if iid:
-        partition_size = len(dataset) // num_clients
-        partitions = [partition_size] * num_clients
-        generator = torch.Generator().manual_seed(42)
-        return random_split(dataset, partitions, generator=generator)
+        # Correctly calculate partition lengths to fix ValueError
+        base_size = total_size // num_clients
+        lengths = [base_size] * num_clients
+        for i in range(total_size % num_clients):
+            lengths[i] += 1
+            
+        return random_split(dataset, lengths, generator=torch.Generator().manual_seed(42))
     else:
-        # Non-IID split: Client 1 (0-3), Client 2 (4-6), Client 3 (7-9)
-        labels = dataset.targets
-        client_indices = [
-            torch.where((labels >= 0) & (labels <= 3))[0],
-            torch.where((labels >= 4) & (labels <= 6))[0],
-            torch.where((labels >= 7) & (labels <= 9))[0]
-        ]
-        return [Subset(dataset, idx) for idx in client_indices]
+        # Authentic label-based Non-IID splitting using torch.chunk
+        indices = torch.argsort(dataset.targets)
+        return [Subset(dataset, idx) for idx in torch.chunk(indices, num_clients)]
