@@ -38,7 +38,7 @@ else:
     output_dim = len(torch.unique(client_datasets[0].tensors[1]))
 
 # Initialize global model using factory
-global_model = get_model(config.MODEL_TYPE, input_dim, output_dim)
+global_model = get_model(getattr(config, "MODEL_TYPE", "simple_nn"), input_dim, output_dim)
 client_loaders = [DataLoader(ds, batch_size=config.BATCH_SIZE, shuffle=True) for ds in client_datasets]
 
 # Create a DataLoader for the global test set

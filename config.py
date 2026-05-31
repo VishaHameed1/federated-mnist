@@ -28,7 +28,7 @@ except ImportError:
 # KAGGLE_DATASET_URL = "https://www.kaggle.com/datasets/uciml/iris"
 # CSV_TARGET_COLUMN = "Species"
 
-# Preset 4: Breast Cancer with Simple NN (Deep Learning for Tabular Data)
+# Preset 4: Breast Cancer with CNN (Deep Learning for Tabular Data)
 DATASET_TYPE = "breast_cancer"
 MODEL_TYPE = "cnn"
 KAGGLE_DATASET_URL = "https://www.kaggle.com/datasets/uciml/breast-cancer-wisconsin-data"
