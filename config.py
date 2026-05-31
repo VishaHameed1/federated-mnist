@@ -69,7 +69,7 @@ KNN_NEIGHBORS = 5  # Number of neighbors for KNN Imputation
 
 # Encryption Settings
 USE_ENCRYPTION = False  # Default to False
-ENCRYPTION_KEY = "L_W-vToTq9N_54U7AInH7vE3ZfK-8JdFqYp-0H4Yk08="
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", "L_W-vToTq9N_54U7AInH7vE3ZfK-8JdFqYp-0H4Yk08=")
 # Server Configuration
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 8080

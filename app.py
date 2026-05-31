@@ -209,7 +209,8 @@ if st.button("🚀 Start Simulation"):
             contribution_scores[h_name] = impact_score
 
         # Update Contribution Chart
-        contribution_chart.bar_chart(pd.Series(contribution_scores), color="#ff4b4b")
+        sorted_scores = dict(sorted(contribution_scores.items(), key=lambda item: item[1], reverse=True))
+        contribution_chart.bar_chart(pd.Series(sorted_scores), color="#ff4b4b")
 
         # 4. Aggregation (Server)
         global_weights_payload = fedavg(client_weights_payloads, use_encryption=use_encryption)

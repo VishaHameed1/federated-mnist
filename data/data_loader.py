@@ -152,6 +152,6 @@ def partition_data(dataset, num_clients, iid=True):
             # Fallback for Subset or other wrappers
             labels = torch.tensor([dataset[i][1] for i in range(len(dataset))])
 
-        # Ensure indices are converted to a list for Subset compatibility
-        indices = torch.argsort(labels).tolist()
-        return [Subset(dataset, idx.tolist()) for idx in torch.chunk(torch.tensor(indices), num_clients)]
+        # Optimized chunking for Subset compatibility
+        indices = torch.argsort(labels)
+        return [Subset(dataset, idx.tolist()) for idx in torch.chunk(indices, num_clients)]
