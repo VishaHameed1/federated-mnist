@@ -2,14 +2,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 .env
-.venv/
-venv/
-env/
 .git/
 .github/
 results/
 data/*.csv
 data/*.zip
-data/mnist/
-*.pth
-.DS_Store
+venv/

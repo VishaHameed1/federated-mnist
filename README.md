@@ -30,18 +30,15 @@ A complete, framework-free implementation of Federated Learning for privacy-pres
 
 ## 🚀 Quick Start
 
-1.  **Install Dependencies**
-    ```bash
-    pip install -r requirements.txt
-    ```
+### 🐳 Option 1: Docker Deployment (Recommended)
+The entire environment is containerized for reproducibility.
+```bash
+docker-compose up --build
+```
 
-2.  **Configure the Simulator**
-    Edit `config.py` to change datasets or models.
-
-3.  **Run the Dashboard**
-    ```bash
-    streamlit run app.py
-    ```
+### 🐍 Option 2: Native Execution
+1. Install dependencies: `pip install -r requirements.txt`
+2. Start simulator: `streamlit run app.py`
 
 ## 📁 Project Structure
 
